@@ -22,7 +22,7 @@ services:
       - db
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/webhookdb
-      MP_TOKEN: "APP_USR-2479726912986958-022223-57b9e0a48b8f1420abb3ae80942cdc34-2281669329"   # <--- reemplazá por tu Access Token válido
+      MP_TOKEN: ${MP_TOKEN}   # 🔑 ahora lo toma del entorno (Railway o local)
     restart: always
 
   pgadmin:
