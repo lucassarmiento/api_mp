@@ -12,7 +12,7 @@ import os
 import json
 from datetime import datetime
 
-# Zona horaria Argentina
+# ───── Zona horaria Argentina ────────────────
 try:
     from zoneinfo import ZoneInfo
     AR_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
@@ -167,9 +167,9 @@ async def webhook_mp(empresa_id: str, request: Request):
 
         # Fecha a grabar
         if type_ == "merchant_order":
-            fecha_evento = datetime.now(AR_TZ).isoformat()
+            fecha_evento = datetime.now(AR_TZ).strftime("%Y-%m-%d %H:%M:%S")
         else:
-            fecha_evento = date_created
+            fecha_evento = date_created or datetime.now(AR_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
         # Crear nuevo evento
         nuevo_evento = Evento(
