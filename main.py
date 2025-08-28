@@ -10,14 +10,15 @@ import time
 import requests
 import os
 import json
-import datetime
+from datetime import datetime
 
-# ---- zona horaria Argentina ----
+# Zona horaria Argentina
 try:
     from zoneinfo import ZoneInfo
     AR_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 except Exception:
-    AR_TZ = datetime.timezone(datetime.timedelta(hours=-3))
+    from datetime import timezone, timedelta
+    AR_TZ = timezone(timedelta(hours=-3))
 
 app = FastAPI()
 
@@ -121,10 +122,6 @@ async def webhook_mp(empresa_id: str, request: Request):
     type_ = payload.get("type")
     date_created = payload.get("date_created")
 
-    # Si el evento es merchant_order -> forzar fecha actual AR
-    if type_ == "merchant_order":
-        date_created = datetime.datetime.now(AR_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
     # Sacar orden_id del payload
     orden_id = None
     if "data" in payload and isinstance(payload["data"], dict):
@@ -168,13 +165,19 @@ async def webhook_mp(empresa_id: str, request: Request):
             merchant_order_id = payment_info["merchant_order_id"]
             external_reference = payment_info["external_reference"]
 
+        # Fecha a grabar
+        if type_ == "merchant_order":
+            fecha_evento = datetime.now(AR_TZ).isoformat()
+        else:
+            fecha_evento = date_created
+
         # Crear nuevo evento
         nuevo_evento = Evento(
             orden_id=str(orden_id) if orden_id else None,
             evento_id=str(evento_id) if evento_id else None,
             action=action,
             type=type_,
-            date_created=date_created,
+            date_created=fecha_evento,
             payment_id=payment_id,
             status=payment_status,
             merchant_order_id=merchant_order_id if type_ == "payment" else (str(orden_id) if type_ == "merchant_order" else None),
