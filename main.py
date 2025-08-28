@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError, OperationalError
+from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, or_
 from database import Base, engine, SessionLocal
 from models import Empresa, Evento
@@ -19,6 +20,7 @@ except Exception:
     AR_TZ = datetime.timezone(datetime.timedelta(hours=-3))
 
 app = FastAPI()
+
 log = logging.getLogger("webhook")
 
 MP_TOKEN = os.getenv("MP_TOKEN")  # Token leido de variable de entorno
@@ -96,8 +98,7 @@ def get_payment_info(payment_id: str):
             "evento_json": json.dumps(data, ensure_ascii=False),
             "status": data.get("status"),
             "merchant_order_id": merchant_order_id,
-            "payment_id": payment_id,
-            "date_created": data.get("date_created")
+            "payment_id": payment_id
         }
     else:
         print(f"[ERROR] No se pudo consultar pago: {payment_id}, status={resp.status_code}")
@@ -106,8 +107,7 @@ def get_payment_info(payment_id: str):
             "evento_json": "{}",
             "status": None,
             "merchant_order_id": None,
-            "payment_id": payment_id,
-            "date_created": None
+            "payment_id": payment_id
         }
 
 
@@ -120,6 +120,10 @@ async def webhook_mp(empresa_id: str, request: Request):
     action = payload.get("action")
     type_ = payload.get("type")
     date_created = payload.get("date_created")
+
+    # Si el evento es merchant_order -> forzar fecha actual AR
+    if type_ == "merchant_order":
+        date_created = datetime.datetime.now(AR_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
     # Sacar orden_id del payload
     orden_id = None
@@ -137,7 +141,7 @@ async def webhook_mp(empresa_id: str, request: Request):
             db.commit()
             db.refresh(empresa)
 
-        # Verificar duplicados
+        # Verificar si ya existe un evento con ese payment_id o merchant_order_id
         if orden_id:
             existente = db.query(Evento).filter(
                 and_(
@@ -154,24 +158,17 @@ async def webhook_mp(empresa_id: str, request: Request):
         # Extraer payment_id
         payment_id = obtener_payment_id(payload, request)
 
-        # Datos base
+        # Consultar detalles del pago si hay payment_id
         payment_status = None
         merchant_order_id = None
         external_reference = None
-
-        # Si es payment, consultar info a MP
-        if payment_id and type_ == "payment":
+        if payment_id:
             payment_info = get_payment_info(payment_id)
             payment_status = payment_info["status"]
             merchant_order_id = payment_info["merchant_order_id"]
             external_reference = payment_info["external_reference"]
-            date_created = payment_info["date_created"]
 
-        # Si es merchant_order, usar fecha/hora actual AR
-        if type_ == "merchant_order":
-            date_created = datetime.datetime.now(AR_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
-        # Crear evento
+        # Crear nuevo evento
         nuevo_evento = Evento(
             orden_id=str(orden_id) if orden_id else None,
             evento_id=str(evento_id) if evento_id else None,
