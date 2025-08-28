@@ -12,7 +12,7 @@ import os
 import json
 from datetime import datetime
 
-# ───── Zona horaria Argentina ────────────────
+# Zona horaria Argentina
 try:
     from zoneinfo import ZoneInfo
     AR_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
@@ -59,9 +59,7 @@ def get_db():
 
 # ---- Funciones auxiliares ----
 def obtener_payment_id(data: dict, request: Request = None):
-    """
-    Extrae el payment_id desde el payload o desde query params
-    """
+    """ Extrae el payment_id desde el payload o desde query params """
     if isinstance(data, dict):
         if data.get("topic") == "payment" and "id" in data:
             return str(data["id"])
@@ -138,19 +136,27 @@ async def webhook_mp(empresa_id: str, request: Request):
             db.commit()
             db.refresh(empresa)
 
-        # Verificar si ya existe un evento con ese payment_id o merchant_order_id
-        if orden_id:
-            existente = db.query(Evento).filter(
+        # 🚨 Chequeo de duplicados específico para merchant_order
+        if type_ == "merchant_order" and orden_id:
+            duplicado = db.query(Evento).filter(
                 and_(
                     Evento.empresa_id == empresa.id,
-                    or_(
-                        Evento.payment_id == str(orden_id),
-                        Evento.merchant_order_id == str(orden_id)
-                    )
+                    Evento.merchant_order_id == str(orden_id)
                 )
             ).first()
-            if existente:
-                return {"status": "duplicado", "orden_id": orden_id}
+            if duplicado:
+                return {"status": "duplicado_merchant_order", "orden_id": orden_id}
+
+        # 🚨 Chequeo para evitar duplicados de payments
+        if type_ == "payment" and orden_id:
+            duplicado = db.query(Evento).filter(
+                and_(
+                    Evento.empresa_id == empresa.id,
+                    Evento.payment_id == str(orden_id)
+                )
+            ).first()
+            if duplicado:
+                return {"status": "duplicado_payment", "orden_id": orden_id}
 
         # Extraer payment_id
         payment_id = obtener_payment_id(payload, request)
@@ -165,7 +171,7 @@ async def webhook_mp(empresa_id: str, request: Request):
             merchant_order_id = payment_info["merchant_order_id"]
             external_reference = payment_info["external_reference"]
 
-        # Fecha a grabar
+        # 📌 Fecha a grabar
         if type_ == "merchant_order":
             fecha_evento = datetime.now(AR_TZ).strftime("%Y-%m-%d %H:%M:%S")
         else:
