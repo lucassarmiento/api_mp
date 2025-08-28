@@ -1,22 +1,4 @@
-#from sqlalchemy import Column, Integer, String, ForeignKey
-#from sqlalchemy.dialects.postgresql import JSONB
-#from sqlalchemy.orm import relationship, declarative_base
-#from database import Base
-
-#class Empresa(Base):
-#    __tablename__ = "empresas"
-#    nombre = Column(String, unique=True, index=True)
-#    eventos = relationship("Evento", back_populates="empresa")
-
-#class Evento(Base):
-#    __tablename__ = "eventos"
-#    id = Column(Integer, primary_key=True, index=True)
-#    orden_id = Column(String, index=True)
-#    empresa_id = Column(Integer, ForeignKey("empresas.id"))
-#    contenido = Column(JSONB)
-#    empresa = relationship("Empresa", back_populates="eventos")
-
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from database import Base
@@ -26,6 +8,7 @@ class Empresa(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True, index=True)
     eventos = relationship("Evento", back_populates="empresa")
+
 
 class Evento(Base):
     __tablename__ = "eventos"
@@ -42,3 +25,9 @@ class Evento(Base):
     contenido = Column(JSONB)
     empresa_id = Column(Integer, ForeignKey("empresas.id"))
     empresa = relationship("Empresa", back_populates="eventos")
+
+    # 🚨 Índices únicos
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "merchant_order_id", name="uq_empresa_merchant_order"),
+        UniqueConstraint("empresa_id", "payment_id", name="uq_empresa_payment"),
+    )
